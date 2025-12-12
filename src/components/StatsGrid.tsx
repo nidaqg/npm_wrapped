@@ -14,7 +14,7 @@ export function StatsGrid({ stats, lastYearStats }: StatsGridProps) {
   return (
     <section className="grid">
       <StatsCard
-        title={`${stats.packageName} — ${stats.year}`}
+        title={`${stats.packageName} (${stats.year})`}
         stats={stats}
       />
       <BreakdownCard stats={stats} />
