@@ -39,6 +39,9 @@ code {
 .title {
   margin: 0;
   font-size: 40px;
+  @media (max-width: 860px) {
+    font-size: 32px;
+  }
 }
 
 .subtitle {
