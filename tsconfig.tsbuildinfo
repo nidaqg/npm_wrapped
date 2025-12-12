@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/index.tsx","./src/npmwrapped.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/index.tsx","./src/npmwrapped.ts","./src/components/breakdowncard.tsx","./src/components/footer.tsx","./src/components/header.tsx","./src/components/kpidisplay.tsx","./src/components/monthlyhighlights.tsx","./src/components/searchform.tsx","./src/components/statscard.tsx","./src/components/statsgrid.tsx","./src/components/yearcomparison.tsx","./src/components/index.ts"],"version":"5.9.3"}
