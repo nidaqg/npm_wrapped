@@ -1,2 +1,3 @@
 # npm_wrapped
-NPM library, 'wrapped' 
+
+Put in your NPM library and see your yearly stats!
