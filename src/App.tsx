@@ -8,12 +8,13 @@ export default function App() {
   const [pkgName, setPkgName] = useState("playbook-ui");
   const [year, setYear] = useState(currentYear);
   const [stats, setStats] = useState<WrappedStats | null>(null);
+  const [lastYearStats, setLastYearStats] = useState<WrappedStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const yearHint = useMemo(() => {
     return year === currentYear
-      ? `Showing ${currentYear}. Change year to see past releases.`
+      ? `Showing ${currentYear}.`
       : `Showing ${year}.`;
   }, [year]);
 
@@ -25,11 +26,16 @@ export default function App() {
     setLoading(true);
     setError(null);
     setStats(null);
+    setLastYearStats(null);
 
     try {
       const releases = await fetchReleases(name);
-      const wrapped = computeWrappedStats(name, releases, year);
-      setStats(wrapped);
+
+      const current = computeWrappedStats(name, releases, year);
+      const previous = computeWrappedStats(name, releases, year - 1);
+
+      setStats(current);
+      setLastYearStats(previous);
     } catch (err: any) {
       setError(err?.message || "Something went wrong");
     } finally {
@@ -95,9 +101,10 @@ export default function App() {
 
       {stats && (
         <section className="grid">
+          {/* This year */}
           <div className="card">
             <h2 className="sectionTitle">
-              {stats.packageName} ( {stats.year} )
+              {stats.packageName} — {stats.year}
             </h2>
 
             <div className="kpis">
@@ -120,6 +127,7 @@ export default function App() {
             </div>
           </div>
 
+          {/* Breakdown */}
           <div className="card">
             <h3 className="sectionTitle">Stable breakdown</h3>
             <div className="kpis">
@@ -138,58 +146,59 @@ export default function App() {
             </div>
           </div>
 
+          {/* Monthly */}
           <div className="card">
             <h3 className="sectionTitle">Monthly highlights</h3>
             <ul className="list">
               <li>
-                <span className="listKey">Busiest month (overall)</span>
-                <span className="listVal">
-                  {stats.busiestMonthOverall ?? "—"}
-                </span>
+                <span className="listKey">Busiest month</span>
+                <span className="listVal">{stats.busiestMonthOverall ?? "—"}</span>
               </li>
               <li>
                 <span className="listKey">Most stable releases</span>
-                <span className="listVal">
-                  {stats.busiestMonthStable ?? "—"}
-                </span>
+                <span className="listVal">{stats.busiestMonthStable ?? "—"}</span>
               </li>
               <li>
                 <span className="listKey">Patch-iest month</span>
-                <span className="listVal">
-                  {stats.busiestMonthPatches ?? "—"}
-                </span>
-              </li>
-              <li>
-                <span className="listKey">Longest stable gap</span>
-                <span className="listVal">
-                  {stats.longestGapDays != null
-                    ? `${stats.longestGapDays} days`
-                    : "—"}
-                </span>
+                <span className="listVal">{stats.busiestMonthPatches ?? "—"}</span>
               </li>
             </ul>
           </div>
 
-          <div className="card">
-            <h3 className="sectionTitle">A little flavor</h3>
-            <p className="flavor">
-              {stats.rcCount > stats.stableCount
-                ? "Your RC era was LOUD this year."
-                : stats.patches > stats.minors && stats.patches > stats.majors
-                ? "Big ‘ship fixes fast’ energy."
-                : stats.majors > 0
-                ? "You weren’t afraid of big moves."
-                : "Steady and consistent — love that for you."}
-            </p>
-            <p className="tiny">
-              (RCs only count if the version looks like <code>-rc.X</code>)
-            </p>
-          </div>
+          {/* Last year */}
+          {lastYearStats && (
+            <div className="card">
+              <h3 className="sectionTitle">
+                Last year ({lastYearStats.year})
+              </h3>
+
+              <ul className="list">
+                <li>
+                  <span className="listKey">Total releases</span>
+                  <span className="listVal">{lastYearStats.totalReleases}</span>
+                </li>
+                <li>
+                  <span className="listKey">Stable releases</span>
+                  <span className="listVal">{lastYearStats.stableCount}</span>
+                </li>
+                <li>
+                  <span className="listKey">RCs</span>
+                  <span className="listVal">{lastYearStats.rcCount}</span>
+                </li>
+                <li>
+                  <span className="listKey">Majors / Minors / Patches</span>
+                  <span className="listVal">
+                    {lastYearStats.majors}/{lastYearStats.minors}/{lastYearStats.patches}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
       <footer className="footer">
-        <span>Built by @nidaqg</span>
+        <span>Built from npm registry publish data.</span>
       </footer>
     </div>
   );

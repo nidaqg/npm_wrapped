@@ -11,14 +11,14 @@ export interface Release {
   isRc: boolean;
   date: string;
   year: number;
-  month: string; 
+  month: string;
 }
 
 export interface WrappedStats {
   year: number;
   packageName: string;
 
-  totalReleases: number;
+  totalReleases: number; // stable + RC only
   stableCount: number;
   rcCount: number;
 
@@ -27,7 +27,7 @@ export interface WrappedStats {
   patches: number;
 
   busiestMonthOverall?: string;
-  busiestMonthStable?: string; 
+  busiestMonthStable?: string;
   busiestMonthPatches?: string;
 
   averageRcPerStable: number;
@@ -35,12 +35,23 @@ export interface WrappedStats {
   longestGapDays?: number;
 }
 
-/**
- * Only count:
- * - stable releases
- * - RC prereleases
- */
+export interface YearOverYear {
+  current: WrappedStats;
+  previous: WrappedStats;
+  delta: {
+    totalReleases: number;
+    stableCount: number;
+    rcCount: number;
+    majors: number;
+    minors: number;
+    patches: number;
+    averageRcPerStable: number;
+    longestGapDays?: number;
+  };
+}
+
 function isTrackedRelease(r: Release): boolean {
+  // Only count stable + RC. Exclude alpha/beta/etc.
   return r.isStable || r.isRc;
 }
 
@@ -62,9 +73,6 @@ function groupBy<T>(arr: T[], keyFn: (item: T) => string): Record<string, T[]> {
   }, {} as Record<string, T[]>);
 }
 
-/**
- * Converts "YYYY-MM" to "Month"
- */
 function monthKeyToName(monthKey: string): string {
   return dayjs(`${monthKey}-01`).format("MMMM");
 }
@@ -106,6 +114,8 @@ export async function fetchReleases(pkgName: string): Promise<Release[]> {
 
     const baseVersion = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
     const isStable = parsed.prerelease.length === 0;
+
+    // RC-only prerelease rule (accepts: 1.2.3-rc.1)
     const isRc =
       parsed.prerelease.length > 0 &&
       String(parsed.prerelease[0]).toLowerCase() === "rc";
@@ -133,37 +143,24 @@ export function computeWrappedStats(
   releases: Release[],
   year: number
 ): WrappedStats {
-  const trackedReleases = releases.filter(
-    (r) => r.year === year && isTrackedRelease(r)
-  );
-
-  const stable = trackedReleases.filter((r) => r.isStable);
-  const rcs = trackedReleases.filter((r) => r.isRc);
+  const tracked = releases.filter((r) => r.year === year && isTrackedRelease(r));
+  const stable = tracked.filter((r) => r.isStable);
+  const rcs = tracked.filter((r) => r.isRc);
 
   const majors = stable.filter((r) => r.type === "major").length;
   const minors = stable.filter((r) => r.type === "minor").length;
   const patches = stable.filter((r) => r.type === "patch").length;
 
-  const busiestMonthOverall = findBusiestMonth(
-    groupBy(trackedReleases, (r) => r.month)
-  );
-  const busiestMonthStable = findBusiestMonth(
-    groupBy(stable, (r) => r.month)
-  );
+  const busiestMonthOverall = findBusiestMonth(groupBy(tracked, (r) => r.month));
+  const busiestMonthStable = findBusiestMonth(groupBy(stable, (r) => r.month));
   const busiestMonthPatches = findBusiestMonth(
-    groupBy(
-      stable.filter((r) => r.type === "patch"),
-      (r) => r.month
-    )
+    groupBy(stable.filter((r) => r.type === "patch"), (r) => r.month)
   );
 
   // Average RCs per stable release
   const rcCountByBase = new Map<string, number>();
   for (const rc of rcs) {
-    rcCountByBase.set(
-      rc.baseVersion,
-      (rcCountByBase.get(rc.baseVersion) || 0) + 1
-    );
+    rcCountByBase.set(rc.baseVersion, (rcCountByBase.get(rc.baseVersion) || 0) + 1);
   }
 
   let totalRcForStable = 0;
@@ -172,11 +169,9 @@ export function computeWrappedStats(
   }
 
   const averageRcPerStable =
-    stable.length === 0
-      ? 0
-      : Number((totalRcForStable / stable.length).toFixed(2));
+    stable.length === 0 ? 0 : Number((totalRcForStable / stable.length).toFixed(2));
 
-  // Longest gap between stable releases
+  // Longest gap between stable releases (days)
   let longestGapDays: number | undefined;
   if (stable.length > 1) {
     const sorted = [...stable].sort(
@@ -184,15 +179,14 @@ export function computeWrappedStats(
     );
     for (let i = 1; i < sorted.length; i++) {
       const diff = dayjs(sorted[i].date).diff(dayjs(sorted[i - 1].date), "day");
-      longestGapDays =
-        longestGapDays == null ? diff : Math.max(longestGapDays, diff);
+      longestGapDays = longestGapDays == null ? diff : Math.max(longestGapDays, diff);
     }
   }
 
   return {
     year,
     packageName: pkgName,
-    totalReleases: trackedReleases.length,
+    totalReleases: tracked.length,
     stableCount: stable.length,
     rcCount: rcs.length,
     majors,
@@ -203,5 +197,34 @@ export function computeWrappedStats(
     busiestMonthPatches,
     averageRcPerStable,
     longestGapDays,
+  };
+}
+
+export function computeYearOverYear(
+  pkgName: string,
+  releases: Release[],
+  year: number
+): YearOverYear {
+  const current = computeWrappedStats(pkgName, releases, year);
+  const previous = computeWrappedStats(pkgName, releases, year - 1);
+
+  const round2 = (n: number) => Number(n.toFixed(2));
+
+  return {
+    current,
+    previous,
+    delta: {
+      totalReleases: current.totalReleases - previous.totalReleases,
+      stableCount: current.stableCount - previous.stableCount,
+      rcCount: current.rcCount - previous.rcCount,
+      majors: current.majors - previous.majors,
+      minors: current.minors - previous.minors,
+      patches: current.patches - previous.patches,
+      averageRcPerStable: round2(current.averageRcPerStable - previous.averageRcPerStable),
+      longestGapDays:
+        current.longestGapDays != null && previous.longestGapDays != null
+          ? current.longestGapDays - previous.longestGapDays
+          : undefined,
+    },
   };
 }
