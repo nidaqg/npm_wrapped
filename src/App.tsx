@@ -198,7 +198,7 @@ export default function App() {
       )}
 
       <footer className="footer">
-        <span>Built from npm registry publish data.</span>
+        <span>Built from npm registry publish data by @nidaqg</span>
       </footer>
     </div>
   );
